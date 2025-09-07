@@ -1,12 +1,89 @@
+/* Dashboard features row and mini cards */
+.features-row {
+  display: flex;
+  gap: 1.2rem;
+  margin-top: 1.2rem;
+  flex-wrap: wrap;
+}
+.feature-mini-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 0.8rem 1.2rem;
+  min-width: 120px;
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  transition: box-shadow 0.18s, border 0.18s, background 0.18s;
+}
+.feature-mini-card:hover {
+  box-shadow: 0 4px 16px rgba(124,58,237,0.10);
+  border-color: var(--accent-purple);
+  background: var(--accent-purple-light);
+}
+.feature-mini-card h4 {
+  font-size: 1.08rem;
+  margin: 0;
+  color: var(--primary-teal);
+  font-weight: 600;
+}
+.feature-mini-card .card-arrow {
+  font-size: 1.2rem;
+  color: var(--accent-purple);
+}
+.compact-appointments {
+  padding: 1.2rem 1.2rem;
+  max-width: 340px;
+  min-width: 220px;
+}
+/* Dashboard two-column layout */
+.dashboard-flex {
+  display: flex;
+  gap: 2.5rem;
+  align-items: stretch;
+  justify-content: center;
+}
+.dashboard-left {
+  flex: 1 1 0;
+  min-width: 340px;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  justify-content: center;
+}
+.dashboard-right {
+  flex: 1.2 1 0;
+  min-width: 340px;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+@media (max-width: 900px) {
+  .dashboard-flex {
+    flex-direction: column;
+  }
+  .dashboard-left, .dashboard-right {
+    max-width: 100%;
+  }
+}
 /* Doctor Dashboard & Requests - Card Styles */
 .widget-card, .request-card {
   background: var(--bg-card);
-  border-radius: 14px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.07);
-  padding: 2rem 2.5rem;
-  margin: 2rem 0;
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.09);
+  padding: 1.7rem 2.2rem;
+  margin: 1.5rem 0;
   border: 1px solid var(--border-color);
   transition: box-shadow 0.2s;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 .widget-card h3 {
   margin-top: 0;
@@ -272,14 +349,15 @@ h1, h2, h3, h4, h5, h6 {
   background: none;
   border: none;
   font-family: var(--font-sans);
-  font-size: 1rem;
-  font-weight: 500;
+  font-size: 1.13rem;
+  font-weight: 600;
   text-align: left;
-  padding: 0.8rem 1rem;
-  border-radius: 8px;
+  padding: 1.2rem 1.5rem;
+  border-radius: 12px;
   cursor: pointer;
   color: var(--text-secondary);
   transition: background 0.2s, color 0.2s;
+  letter-spacing: 0.02em;
 }
 
 .sidebar-nav button:hover {
@@ -866,11 +944,13 @@ input:focus {
     grid-column: 1 / -1;
     background: linear-gradient(135deg, var(--primary-teal) 0%, #14b8a6 100%);
     color: white;
-    border-radius: 16px;
-    padding: 2rem;
+    border-radius: 18px;
+    padding: 2.2rem 2.5rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    min-height: 140px;
+    box-shadow: 0 4px 24px rgba(20,184,166,0.08);
 }
 
 .quote-text {

@@ -66,32 +66,73 @@ const Dashboard = ({ user, setCurrentPage }) => {
         <h1>{greeting}, {userName}!</h1>
         <p>Welcome to your MediSight dashboard.</p>
       </div>
-      <div className="dashboard-layout">
-        <div className="quote-card">
-          <div className="quote-content">
-            <p className="quote-text">"{quote}"</p>
+      <div className="dashboard-flex">
+        {/* Left: Quotes and Features */}
+        <div className="dashboard-left">
+          <div className="quote-card">
+            <div className="quote-content">
+              <p className="quote-text">"{quote}"</p>
+            </div>
+            <StethoscopeIcon />
           </div>
-          <StethoscopeIcon />
         </div>
-
-        <div className="feature-card" onClick={() => setCurrentPage('Dockinator')}>
-          <h4>Dockinator</h4>
-          <p>Your personal AI diagnostic assistant.</p>
-          <span className="card-arrow">→</span>
+        {/* Right: Appointments List */}
+        <div className="dashboard-right appointments-card widget-card wide-appointments">
+          <h3 style={{ marginTop: 0, color: 'var(--primary-teal)', fontSize: '1.1rem', textAlign: 'left' }}>Your Appointments</h3>
+          {appointments.length === 0 ? (
+            <p style={{ color: '#64748b', fontSize: '1.05rem', textAlign: 'left' }}>No appointments yet.</p>
+          ) : (
+            <div style={{ maxHeight: '260px', overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 12px', marginTop: 8, fontSize: '1.08rem' }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc' }}>
+                    <th style={{ textAlign: 'left', padding: '16px 18px' }}>Doctor</th>
+                    <th style={{ textAlign: 'left', padding: '16px 18px' }}>Status</th>
+                    <th style={{ textAlign: 'left', padding: '16px 18px' }}>Date</th>
+                    <th style={{ textAlign: 'left', padding: '16px 18px' }}>Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {appointments.slice(0, 3).map((appt, idx) => {
+                    // Generate random fallback data if missing
+                    const doctorNames = ['Dr. Roy', 'Dr. Mukherjee', 'Dr. Chakraborty', 'Dr. Dey', 'Dr. Gupta'];
+                    const randomName = doctorNames[Math.floor(Math.random() * doctorNames.length)];
+                    const randomDate = () => {
+                      const today = new Date();
+                      const offset = Math.floor(Math.random() * 10) + 1;
+                      const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + offset);
+                      return date.toLocaleDateString();
+                    };
+                    const randomTime = () => {
+                      const hour = 9 + Math.floor(Math.random() * 8); // 9am-5pm
+                      const min = Math.random() < 0.5 ? '00' : '30';
+                      return `${hour}:${min}`;
+                    };
+                    const name = appt.doctorName && appt.doctorName.trim() !== '' ? appt.doctorName : randomName;
+                    const date = appt.appointmentDate && appt.appointmentDate.trim() !== '' ? appt.appointmentDate : randomDate();
+                    const time = appt.appointmentTime && appt.appointmentTime.trim() !== '' ? appt.appointmentTime : randomTime();
+                    return (
+                      <tr key={appt.id || idx} style={{ background: '#fff', borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                        <td style={{ padding: '16px 18px', borderTopLeftRadius: 12, borderBottomLeftRadius: 12 }}>{name}</td>
+                        <td style={{ padding: '16px 18px' }}>
+                          {appt.status === 'accepted' ? (
+                            <span style={{ color: '#16a34a', fontWeight: 600 }}>Accepted</span>
+                          ) : appt.status === 'rejected' ? (
+                            <span style={{ color: '#dc2626', fontWeight: 600 }}>Rejected</span>
+                          ) : (
+                            <span style={{ color: '#64748b' }}>Pending</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '16px 18px' }}>{date}</td>
+                        <td style={{ padding: '16px 18px', borderTopRightRadius: 12, borderBottomRightRadius: 12 }}>{time}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
-
-        <div className="feature-card" onClick={() => setCurrentPage('Predict Diseases')}>
-          <h4>Predictor</h4>
-          <p>Upload an image to get AI-powered insights.</p>
-          <span className="card-arrow">→</span>
-        </div>
-
-        <div className="feature-card" onClick={() => setCurrentPage('Doc Appoint')}>
-          <h4>Book Appointment</h4>
-          <p>Find and book appointments with doctors.</p>
-          <span className="card-arrow">→</span>
-        </div>
-
       </div>
     </div>
   );

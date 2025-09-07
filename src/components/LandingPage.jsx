@@ -58,18 +58,18 @@ const LandingPage = ({ onStart }) => {
         <div className="features-grid">
           <div className="feature-item reveal-on-scroll">
             <span className="feature-icon">📊</span>
-            <h3>Smart Tracking</h3>
-            <p>Easily log and monitor your health metrics with our intuitive interface.</p>
+            <h3>Dockinator</h3>
+            <p>Conversational AI to talk to patients to diagnose. Reduces patient panic</p>
           </div>
           <div className="feature-item reveal-on-scroll">
             <span className="feature-icon">🤖</span>
-            <h3>AI-Powered Insights</h3>
-            <p>Receive personalized recommendations and predictions from our advanced AI.</p>
+            <h3>Major Disease predictor</h3>
+            <p>DL- Model to identity certain diseases by informational inputs</p>
           </div>
           <div className="feature-item reveal-on-scroll">
             <span className="feature-icon">🔒</span>
-            <h3>Secure & Private</h3>
-            <p>Your health data is encrypted and stored with the highest security standards.</p>
+            <h3>Doc Appoint</h3>
+            <p>Location, fees, specialty based filtering and doctor appointment and dashboard.</p>
           </div>
         </div>
       </section>
@@ -77,17 +77,12 @@ const LandingPage = ({ onStart }) => {
       {/* Interactive Section */}
       <section className="interactive-section reveal-on-scroll">
         <div className="interactive-image-container">
-          <video autoPlay loop muted playsInline className="demo-video">
-            <source src="./hero.mp4" type="video/mp4" />
-            Your browser does not support the video tag.
-          </video>
+          <img src="./team.png" alt="Our Team" className="demo-image" style={{ width: '100%', borderRadius: '18px', boxShadow: '0 4px 24px rgba(0,0,0,0.10)' }} />
         </div>
         <div className="interactive-text">
-          <h2>Visualize Your Progress</h2>
+          <h2>About Us</h2>
           <p>
-            Our interactive dashboard brings your health data to life. See trends,
-            spot patterns, and take control of your well-being with visually rich
-            charts and reports.
+            We are a team of 4 second years, inspired by tech and AI. We want to built systems to leverage modern tech for the wellbeing of the masses.
           </p>
         </div>
       </section>
