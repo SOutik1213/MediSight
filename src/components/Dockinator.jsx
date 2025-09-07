@@ -7,6 +7,7 @@ const Dockinator = () => {
   const [isFinished, setIsFinished] = useState(false);
   const [error, setError] = useState(null);
   const [userInput, setUserInput] = useState("");
+  const [finalReport, setFinalReport] = useState(null); // State to hold the final report
   const chatHistoryRef = useRef(null);
 
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
@@ -20,7 +21,7 @@ After 5–7 interactions, always end with a "Final Report".
 Your response MUST be valid JSON in this schema only:
 
 {
-  "summary": "short description of symptoms",
+  "summary": "short description of symptoms collected",
   "final_report": {
     "possible_conditions": [
       { "name": "condition name", "description": "brief explanation" }
@@ -49,7 +50,7 @@ Your response MUST be valid JSON in this schema only:
     try {
       const response = await callGeminiAPI(
         [{ role: "user", parts: [{ text: "Let's begin." }] }],
-        true // ignore previous history for first call
+        true
       );
       setHistory((prev) => [...prev, { role: "model", parts: [{ text: response }] }]);
     } catch (err) {
@@ -60,6 +61,7 @@ Your response MUST be valid JSON in this schema only:
   };
 
   const callGeminiAPI = async (currentHistory, ignorePrev = false) => {
+    // ... (This function remains the same as before)
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
     const payload = {
       contents: ignorePrev
@@ -82,6 +84,26 @@ Your response MUST be valid JSON in this schema only:
     const result = await response.json();
     return result.candidates[0].content.parts[0].text;
   };
+  
+  // NEW FUNCTION to call your local backend
+  const getPredictionFromLocalModel = async (symptomSummary) => {
+    try {
+      console.log("Sending to local model:", symptomSummary);
+      const response = await fetch("http://localhost:5000/api/predict/dockinator", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_input: symptomSummary }),
+      });
+      if (!response.ok) throw new Error("Local model prediction failed.");
+      
+      const result = await response.json();
+      return result; // e.g., { prediction: "Condition_10", confidence: 0.64 }
+
+    } catch (err) {
+      console.error("Local model error:", err);
+      return { prediction: "Error", confidence: 0 };
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -95,39 +117,40 @@ Your response MUST be valid JSON in this schema only:
 
     try {
       const modelResponse = await callGeminiAPI([userAnswer]);
-
-      // Extract JSON safely
       const jsonRegex = /```json\s*(\{[\s\S]*?\})\s*```|(\{[\s\S]*?\})/s;
       const jsonMatch = modelResponse.match(jsonRegex);
-      let messageContent = modelResponse;
-      let isReport = false;
 
       if (jsonMatch) {
         const jsonString = jsonMatch[1] || jsonMatch[2];
-        try {
-          const parsedJson = JSON.parse(jsonString);
-          if (parsedJson?.final_report) {
-            messageContent = parsedJson;
-            isReport = true;
-          }
-        } catch (parseError) {
-          console.error("JSON parse failed:", parseError);
+        const parsedJson = JSON.parse(jsonString);
+
+        if (parsedJson?.final_report) {
+          // It's the final report!
+          setIsLoading(true); // Show loading while we call our own model
+          setHistory(prev => [...prev, {role: "model", parts: [{text: "Analyzing the summary with our specialized model..."}]}]);
+
+          // Call our local model with the summary from Gemini
+          const localPrediction = await getPredictionFromLocalModel(parsedJson.summary);
+
+          // Add our model's prediction to the final report object
+          const combinedReport = {
+            ...parsedJson,
+            local_model_prediction: localPrediction,
+          };
+          
+          setFinalReport(combinedReport); // Set the full report to be displayed
+          setIsFinished(true); // Trigger the final report UI
+          setIsLoading(false);
+          return; // End the submission process here
         }
       }
-
-      setHistory((prev) => [
-        ...prev,
-        { role: "model", parts: [{ text: messageContent }] },
-      ]);
-
-      if (isReport) setIsFinished(true);
+      
+      // If it's not the final report, just continue the conversation
+      setHistory((prev) => [...prev, { role: "model", parts: [{ text: modelResponse }] }]);
 
     } catch (err) {
       setError(`Error: ${err.message}`);
-      setHistory((prev) => [
-        ...prev,
-        { role: "model", parts: [{ text: `Error: ${err.message}` }] },
-      ]);
+      setHistory((prev) => [...prev, { role: "model", parts: [{ text: `Error: ${err.message}` }] }]);
     } finally {
       setIsLoading(false);
     }
@@ -137,9 +160,11 @@ Your response MUST be valid JSON in this schema only:
     setHistory([]);
     setIsFinished(false);
     setError(null);
+    setFinalReport(null);
     startConversation();
   };
 
+  // UPDATED renderFinalReport to show the combined result
   const renderFinalReport = (report) => (
     <motion.div
       key="report"
@@ -149,26 +174,30 @@ Your response MUST be valid JSON in this schema only:
       className="final-report-card"
     >
       <h3>📋 Final Report</h3>
-      <p><strong>Summary:</strong> {report.summary}</p>
+      
+      {/* This is the new part for your model's prediction */}
+      <div className="local-prediction-highlight">
+        <h4>Specialized Model Prediction</h4>
+        <p>
+            <strong>Condition:</strong> {report.local_model_prediction.prediction}
+            <br/>
+            <strong>Confidence:</strong> {Math.round(report.local_model_prediction.confidence * 100)}%
+        </p>
+      </div>
 
-      <h4>Possible Conditions</h4>
+      <p><strong>Symptom Summary (from Gemini):</strong> {report.summary}</p>
+
+      <h4>Possible Conditions (from Gemini)</h4>
       <ul>
         {report.final_report.possible_conditions.map((cond, i) => (
           <li key={i}><strong>{cond.name}:</strong> {cond.description}</li>
         ))}
       </ul>
 
-      <h4>Recommendations</h4>
+      <h4>Recommendations (from Gemini)</h4>
       <ul>
         {report.final_report.recommendations.map((rec, i) => (
           <li key={i}>{rec}</li>
-        ))}
-      </ul>
-
-      <h4>Doctor May Recommend</h4>
-      <ul>
-        {report.final_report.doctor_may_recommend.map((test, i) => (
-          <li key={i}>{test}</li>
         ))}
       </ul>
 
@@ -186,32 +215,16 @@ Your response MUST be valid JSON in this schema only:
       <div className="dockinator-main">
         <AnimatePresence>
           {!isFinished ? (
-            <motion.div
-              key="chat"
-              initial={{ opacity: 0, x: 40 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -40 }}
-              className="dockinator-chat-panel"
-            >
+            <motion.div /* Chat Panel */ >
               <div ref={chatHistoryRef} className="chat-log">
                 {history.filter((h) => h.role !== "system").map((msg, idx) => (
                   <div key={idx} className={`chat-message ${msg.role}`}>
-                    {typeof msg.parts[0].text === "string"
-                      ? msg.parts[0].text
-                      : "Generating report..."}
+                    {msg.parts[0].text}
                   </div>
                 ))}
-
-                {isLoading && (
-                  <div className="typing-indicator">
-                    <div></div>
-                    <div></div>
-                    <div></div>
-                  </div>
-                )}
+                {isLoading && <div className="typing-indicator"><div/><div/><div/></div>}
                 {error && <div className="chat-message model error">{error}</div>}
               </div>
-
               <form className="input-form" onSubmit={handleSubmit}>
                 <input
                   type="text"
@@ -220,21 +233,14 @@ Your response MUST be valid JSON in this schema only:
                   placeholder="Type your response..."
                   disabled={isLoading}
                 />
-                <button type="submit" disabled={!userInput.trim() || isLoading}>
-                  Send
-                </button>
+                <button type="submit" disabled={!userInput.trim() || isLoading}>Send</button>
               </form>
             </motion.div>
           ) : (
-            renderFinalReport(history[history.length - 1].parts[0].text)
+            finalReport && renderFinalReport(finalReport)
           )}
         </AnimatePresence>
-
-        <motion.div
-          className="dockinator-character"
-          animate={{ y: isFinished ? -50 : 0, scale: isFinished ? 1.15 : 1 }}
-          transition={{ duration: 0.8, type: "spring" }}
-        >
+        <motion.div /* Dockinator Character */ >
           <img src="/Dockinator.png" alt="Dockinator AI Assistant" />
         </motion.div>
       </div>

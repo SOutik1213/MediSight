@@ -7,6 +7,9 @@ from PIL import Image
 import io
 import os
 import requests
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import torch
+
 
 app = Flask(__name__)
 CORS(app) 
@@ -16,6 +19,8 @@ CORS(app)
 # Paths for models
 skin_model_path = os.path.join(os.path.dirname(__file__), '..', 'skin_cancer_model (2).keras')
 tb_model_path = os.path.join(os.path.dirname(__file__), '..', 'Tuberculosis_model.keras')
+transformer_model_path = os.path.join(os.path.dirname(__file__), 'transformer_model')
+
 
 
 # Load the models
@@ -23,11 +28,24 @@ skin_model = tf.keras.models.load_model(skin_model_path)
 print(f"Skin Cancer model loaded successfully from: {skin_model_path}")
 tb_model = tf.keras.models.load_model(tb_model_path)
 print(f"Tuberculosis model loaded successfully from: {tb_model_path}")
-
+# Load the transformer model and tokenizer
+tokenizer = AutoTokenizer.from_pretrained(transformer_model_path)
+transformer_model = AutoModelForSequenceClassification.from_pretrained(transformer_model_path)
+print(f"Transformer model loaded successfully from: {transformer_model_path}")
 
 # --- CONFIGURATIONS ---
 
 # Skin Cancer configuration
+DISEASE_NAMES = [
+    '(vertigo) Paroymsal  Positional Vertigo', 'AIDS', 'Acne', 'Alcoholic hepatitis', 'Allergy', 
+    'Arthritis', 'Bronchial Asthma', 'Cervical spondylosis', 'Chicken pox', 'Chronic cholestasis', 
+    'Common Cold', 'Dengue', 'Diabetes ', 'Dimorphic hemmorhoids(piles)', 'Drug Reaction', 
+    'Fungal infection', 'GERD', 'Gastroenteritis', 'Heart attack', 'Hepatitis B', 'Hepatitis C', 
+    'Hepatitis D', 'Hepatitis E', 'Hypertension ', 'Hyperthyroidism', 'Hypoglycemia', 
+    'Hypothyroidism', 'Impetigo', 'Jaundice', 'Malaria', 'Migraine', 'Osteoarthristis', 
+    'Paralysis (brain hemorrhage)', 'Peptic ulcer diseae', 'Pneumonia', 'Psoriasis', 
+    'Tuberculosis', 'Typhoid', 'Urinary tract infection', 'Varicose veins', 'hepatitis A'
+]
 SKIN_CLASS_NAMES = [
     'Actinic keratoses and intraepithelial carcinoma / Bowen\'s disease',
     'Basal cell carcinoma',
@@ -67,6 +85,31 @@ def preprocess_image(image_data, size=(224, 224)):
 @app.route('/api/health', methods=['GET'])
 def health_check():
     return jsonify({'status': 'healthy', 'message': 'Prediction API is running'})
+
+@app.route('/api/predict/dockinator', methods=['POST'])
+def predict_dockinator():
+    try:
+        data = request.get_json()
+        user_input = data.get('user_input')
+        if not user_input:
+            return jsonify({'error': 'No input provided'}), 400
+
+        inputs = tokenizer(user_input, return_tensors="pt")
+        with torch.no_grad():
+            logits = transformer_model(**inputs).logits
+        
+        predicted_class_id = logits.argmax().item()
+        
+        # Use the mapping to get the disease name
+        predicted_class_name = DISEASE_NAMES[predicted_class_id] if 0 <= predicted_class_id < len(DISEASE_NAMES) else "Unknown Condition"
+        
+        result = {
+            'prediction': predicted_class_name,
+            'confidence': torch.nn.functional.softmax(logits, dim=-1).max().item()
+        }
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': f'Dockinator prediction failed: {str(e)}'}), 500
 
 @app.route('/api/predict/skin', methods=['POST'])
 def predict_skin():
