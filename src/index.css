@@ -218,7 +218,7 @@ h1, h2, h3, h4, h5, h6 {
   flex-shrink: 0; /* Prevent the header from shrinking */
 }
 
-.dashboard-layout, .dockinator-interface, .doctors-table-container,
+.dockinator-interface, .doctors-table-container,
 .prediction-list-container, .prediction-module-container, .skin-cancer-container {
     flex-grow: 1; /* Allow content to fill remaining space */
     overflow-y: auto; /* Enable vertical scrolling ONLY on content */
@@ -570,13 +570,29 @@ input:focus {
   margin-top: 0.25rem;
 }
 
-/* 3.5 Doc Appoint Table */
-.doctors-table-container {
-    background: var(--bg-card);
-    border-radius: 12px;
-    overflow: hidden;
-    border: 1px solid var(--border-color);
+/* REUSABLE LAYOUT FOR SCROLLING PAGES */
+.page-flex-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%; /* Fill the parent (.main-content) */
 }
+
+/* Styles for DocAppoint Page */
+.filters-container {
+  display: flex;
+  gap: 1rem;
+  flex-shrink: 0;
+  margin-bottom: 1rem;
+}
+
+.scrollable-table-container {
+  flex-grow: 1; 
+  overflow-y: auto; 
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-card);
+}
+
 .doctors-table {
     width: 100%;
     border-collapse: collapse;
@@ -590,6 +606,8 @@ input:focus {
     background-color: var(--bg-main);
     color: var(--text-primary);
     font-weight: 600;
+    position: sticky;
+    top: 0;
 }
 .doctors-table tbody tr:last-child td {
     border-bottom: none;
@@ -832,16 +850,20 @@ input:focus {
 }
 .disclaimer strong { color: #a16207; }
 
-/* 3.8 Dashboard - REDESIGNED */
+/* 3.8 Dashboard - REDESIGNED AND UPDATED FOR SCROLLING */
 .dashboard-layout {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: auto auto;
+    grid-auto-rows: auto;
     gap: 1.5rem;
+    flex-grow: 1;
+    overflow-y: auto;
+    padding-right: 1rem;
+    align-content: start;
 }
 
 .quote-card {
-    grid-column: 1 / -1; /* Span all 3 columns */
+    grid-column: 1 / -1;
     background: linear-gradient(135deg, var(--primary-teal) 0%, #14b8a6 100%);
     color: white;
     border-radius: 16px;
@@ -996,3 +1018,46 @@ input:focus {
   100% { transform: rotate(360deg); }
 }
 
+/* 5. Responsive Adjustments */
+/* For tablets and smaller desktops */
+@media (max-width: 1024px) {
+  .dockinator-main {
+    gap: 1rem;
+  }
+
+  .dockinator-character {
+    flex-basis: 20%;
+    min-width: 150px;
+  }
+
+  .dashboard-layout {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* For mobile devices */
+@media (max-width: 768px) {
+  .main-content {
+    padding: 1rem 1.5rem;
+  }
+
+  .dockinator-main {
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 0.5rem;
+  }
+
+  .dockinator-chat-panel {
+    width: 100%;
+    height: 90%;
+    flex-basis: auto;
+  }
+
+  .dockinator-character {
+    display: none;
+  }
+
+  .dashboard-layout {
+    grid-template-columns: 1fr;
+  }
+}

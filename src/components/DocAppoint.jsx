@@ -71,7 +71,8 @@ const DocAppoint = () => {
   if (loading) return <p>Loading doctors...</p>;
 
   return (
-    <div className="page-container">
+    // CHANGED: Using a new class for a flexbox layout
+    <div className="doc-appoint-layout">
       <div className="page-header">
         <h1>Find a Doctor</h1>
       </div>
@@ -85,8 +86,9 @@ const DocAppoint = () => {
       {message && (
         <div className="message-toast floating-toast">{message}</div>
       )}
-
-      <div className="table-container">
+      
+      {/* CHANGED: Using a new, specific class for the scrollable table container */}
+      <div className="scrollable-table-container">
         <table className="doctors-table">
           <thead>
             <tr>
@@ -123,4 +125,3 @@ const DocAppoint = () => {
 };
 
 export default DocAppoint;
-

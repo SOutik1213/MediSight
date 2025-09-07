@@ -92,41 +92,6 @@ const Dashboard = ({ user, setCurrentPage }) => {
           <span className="card-arrow">→</span>
         </div>
 
-        <div className="appointments-card widget-card" style={{ gridColumn: '1 / -1', marginTop: 24 }}>
-          <h3 style={{ marginTop: 0, color: 'var(--primary-teal)' }}>Your Appointments</h3>
-          {appointments.length === 0 ? (
-            <p style={{ color: '#64748b' }}>No appointments yet.</p>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 12 }}>
-              <thead>
-                <tr style={{ background: '#f8fafc' }}>
-                  <th style={{ textAlign: 'left', padding: 8 }}>Doctor</th>
-                  <th style={{ textAlign: 'left', padding: 8 }}>Status</th>
-                  <th style={{ textAlign: 'left', padding: 8 }}>Date</th>
-                  <th style={{ textAlign: 'left', padding: 8 }}>Time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {appointments.map(appt => (
-                  <tr key={appt.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: 8 }}>{appt.doctorName || 'Doctor'}</td>
-                    <td style={{ padding: 8 }}>
-                      {appt.status === 'accepted' ? (
-                        <span style={{ color: '#16a34a', fontWeight: 600 }}>Accepted</span>
-                      ) : appt.status === 'rejected' ? (
-                        <span style={{ color: '#dc2626', fontWeight: 600 }}>Rejected</span>
-                      ) : (
-                        <span style={{ color: '#64748b' }}>Pending</span>
-                      )}
-                    </td>
-                    <td style={{ padding: 8 }}>{appt.appointmentDate || '-'}</td>
-                    <td style={{ padding: 8 }}>{appt.appointmentTime || '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
       </div>
     </div>
   );
