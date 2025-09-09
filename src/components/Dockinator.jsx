@@ -10,7 +10,8 @@ const Dockinator = () => {
   const [finalReport, setFinalReport] = useState(null);
   const chatHistoryRef = useRef(null);
 
-  const HF_SPACE_URL = "https://soutik07-medisight.hf.space/run/predict_symptoms";
+  // CHANGED: Use a single API endpoint for the entire Gradio app
+  const HF_SPACE_URL = "https://soutik07-medisight.hf.space/run/predict";
 
   const systemPrompt = `You are Dockinator, a friendly and empathetic AI medical assistant. 
 Start by introducing yourself and asking the user to describe their primary symptom. 
@@ -85,7 +86,8 @@ Your response MUST be valid JSON in this schema only:
       const response = await fetch(HF_SPACE_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_input: symptomSummary }),
+        // CHANGED: Added tab index 2 for symptom prediction model
+        body: JSON.stringify({ data: [2, symptomSummary] }),
       });
 
       if (!response.ok) {
@@ -94,7 +96,8 @@ Your response MUST be valid JSON in this schema only:
       }
 
       const result = await response.json();
-      return result;
+      // The Gradio API returns a list of results, so we need to get the first one
+      return result.data[0];
     } catch (err) {
       console.error("HF error:", err);
       return { Prediction: "Error", Confidence: 0 };

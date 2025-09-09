@@ -7,7 +7,8 @@ const TB = ({ onBack }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const API_URL = "https://soutik07-medisight.hf.space/run/predict_tb";
+  // CHANGED: Use a single API endpoint for the entire Gradio app
+  const API_URL = "https://soutik07-medisight.hf.space/run/predict";
 
   const handleFileChange = (e) => {
     const file = e.dataTransfer ? e.dataTransfer.files[0] : e.target.files[0];
@@ -45,7 +46,8 @@ const TB = ({ onBack }) => {
         const response = await fetch(API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ data: [base64Image] }),
+          // CHANGED: Added tab index 1 for TB model
+          body: JSON.stringify({ data: [1, base64Image] }),
         });
 
         if (!response.ok) {
@@ -53,7 +55,9 @@ const TB = ({ onBack }) => {
           throw new Error(errData.error || 'Prediction failed');
         }
 
-        const pred = await response.json(); // HF Space returns object directly
+        const result = await response.json(); // HF Space returns object directly
+        // The Gradio API returns a list of results, so we need to get the first one
+        const pred = result.data[0];
 
         if (pred) {
           let recommendation = '';

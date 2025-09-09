@@ -7,7 +7,8 @@ const SkinCancer = ({ onBack }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const API_BASE_URL = "https://soutik07-MediSight.hf.space/run/predict_skin";
+  // CHANGED: Use a single API endpoint for the entire Gradio app
+  const API_BASE_URL = "https://soutik07-medisight.hf.space/run/predict";
 
   const handleFileChange = (e) => {
     const file = e.dataTransfer ? e.dataTransfer.files[0] : e.target.files[0];
@@ -41,7 +42,8 @@ const SkinCancer = ({ onBack }) => {
         const response = await fetch(API_BASE_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ data: [base64Image] }),
+          // CHANGED: Added tab index 0 for skin cancer model
+          body: JSON.stringify({ data: [0, base64Image] }),
         });
 
         if (!response.ok) {
@@ -52,7 +54,8 @@ const SkinCancer = ({ onBack }) => {
         const result = await response.json();
         console.log('Prediction result:', result);
 
-        const pred = result; // HF Space returns object directly
+        // The Gradio API returns a list of results, so we need to get the first one
+        const pred = result.data[0];
 
         if (pred) {
           const isMalignant = pred["Is Malignant"];
