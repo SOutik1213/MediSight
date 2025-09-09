@@ -10,7 +10,7 @@ const Dockinator = () => {
   const [finalReport, setFinalReport] = useState(null);
   const chatHistoryRef = useRef(null);
 
-  const HF_SPACE_URL = "https://hf.space/embed/soutik07/MediSight/api/predict_symptoms";
+  const HF_SPACE_URL = `${import.meta.env.VITE_API_URL}/run/predict_symptoms`;
 
   const systemPrompt = `You are Dockinator, a friendly and empathetic AI medical assistant. 
 Start by introducing yourself and asking the user to describe their primary symptom. 
