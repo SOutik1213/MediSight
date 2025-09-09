@@ -7,3 +7,6 @@ gunicorn>=21.0.0
 transformers>=4.45.0
 tokenizers>=0.20.3
 tf_keras>=2.20.1
+torch==2.2.2
+torchvision==0.17.2
+torchaudio==2.2.2
