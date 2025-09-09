@@ -7,7 +7,7 @@ const TB = ({ onBack }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const API_URL = `${import.meta.env.VITE_API_URL}/api/predict/tb`;
+  const API_URL = `${import.meta.env.VITE_API_URL}/run/predict_tb`;
 
 
   // Drag-and-drop support
