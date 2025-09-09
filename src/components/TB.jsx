@@ -7,7 +7,7 @@ const TB = ({ onBack }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const API_URL = "https://soutik07-medisight-api.hf.space/run/predict_tb";
+  const API_URL = "https://soutik07-medisight.hf.space/run/predict_tb";
 
   const handleFileChange = (e) => {
     const file = e.dataTransfer ? e.dataTransfer.files[0] : e.target.files[0];
@@ -19,7 +19,7 @@ const TB = ({ onBack }) => {
     } else {
       setImageFile(null);
       setPreviewUrl('');
-      setError('Please select a valid X-ray image.');
+      setError('Please select a valid image file.');
     }
   };
 
@@ -27,7 +27,10 @@ const TB = ({ onBack }) => {
   const handleDragOver = (e) => { e.preventDefault(); };
 
   const handlePredict = async () => {
-    if (!imageFile) return;
+    if (!imageFile) {
+      setError('Please upload an X-ray image first.');
+      return;
+    }
 
     setLoading(true);
     setError('');
@@ -50,16 +53,19 @@ const TB = ({ onBack }) => {
           throw new Error(errData.error || 'Prediction failed');
         }
 
-        const result = await response.json();
-        console.log('TB Prediction Result:', result);
+        const pred = await response.json(); // HF Space returns object directly
 
-        const pred = result; // HF Space returns object directly
         if (pred) {
-          let recommendation = pred.Prediction === 'Tuberculosis'
-            ? 'High risk detected. Please consult a doctor immediately.'
-            : 'No significant risk detected. Continue with regular health checkups.';
-          setPrediction({ ...pred, recommendation });
+          let recommendation = '';
+          if (pred.Prediction === 'Tuberculosis') {
+            recommendation = 'High risk detected. Please consult a doctor immediately.';
+          } else {
+            recommendation = 'No significant risk detected. Continue with regular health checkups.';
+          }
+
+          setPrediction({ ...pred, recommendation, is_positive: pred.Prediction === 'Tuberculosis' });
         } else {
+          setPrediction(null);
           setError('Prediction failed.');
         }
       };
@@ -71,30 +77,97 @@ const TB = ({ onBack }) => {
     }
   };
 
-  const getResultClass = (pred) => !pred ? '' : pred.Prediction.toLowerCase() === 'tuberculosis' ? 'result-positive' : 'result-negative';
+  const getResultClass = (pred) => {
+    if (!pred) return '';
+    return pred.toLowerCase() === 'tuberculosis' ? 'result-positive' : 'result-negative';
+  };
 
   return (
     <div className="prediction-module-container">
-      <button onClick={onBack}>← Back</button>
-      <h2>Tuberculosis Prediction</h2>
-      <div
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onClick={() => document.getElementById('tb-image-upload').click()}
-      >
-        {previewUrl ? <img src={previewUrl} alt="Preview" /> : "Drag & drop or click to upload X-ray image"}
-      </div>
-      <input id="tb-image-upload" type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
-      <button onClick={handlePredict} disabled={!imageFile || loading}>{loading ? 'Analyzing...' : 'Predict'}</button>
+      <button className="btn-secondary back-button" onClick={onBack}>← Back</button>
 
-      {error && <div style={{ color: 'red' }}>{error}</div>}
-      {prediction && (
-        <div className={`prediction-result-card ${getResultClass(prediction)}`}>
-          <p><strong>Prediction:</strong> {prediction.Prediction}</p>
-          <p><strong>Confidence:</strong> {(prediction.Confidence*100).toFixed(2)}%</p>
-          <p><strong>Recommendation:</strong> {prediction.recommendation}</p>
+      <div className="header">
+        <h2>Tuberculosis (TB) Prediction</h2>
+        <p className="description">
+          Upload a chest X-ray image for an AI-powered analysis.<br />
+          <span style={{ color: '#dc2626', fontWeight: 500 }}>
+            <strong>Disclaimer:</strong> This is a preliminary analysis and not a medical diagnosis.
+          </span>
+        </p>
+      </div>
+
+      <div className="prediction-content-area" style={{ display: 'flex', gap: '2.5rem', flexWrap: 'wrap' }}>
+        <div className="uploader-column" style={{ flex: 1, minWidth: 320 }}>
+          <h3>Upload X-Ray</h3>
+          <div
+            className="image-dropzone tb-dropzone"
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            style={{ cursor: 'pointer', minHeight: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, transition: 'border 0.2s' }}
+            onClick={() => document.getElementById('tb-image-upload').click()}
+          >
+            {previewUrl ? (
+              <img src={previewUrl} alt="Preview" className="tb-preview-img" style={{ maxWidth: 220, maxHeight: 180, borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }} />
+            ) : (
+              <span className="drop-text" style={{ color: '#64748b', fontSize: 16 }}>
+                <span style={{ fontSize: 32, display: 'block', marginBottom: 8 }}>📤</span>
+                Drag & drop or click to upload X-ray image
+              </span>
+            )}
+          </div>
+
+          <input
+            id="tb-image-upload"
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+            style={{ display: 'none' }}
+          />
+          <div style={{ fontSize: 13, color: '#64748b', marginBottom: 12 }}>
+            Supported: JPG, PNG, etc. Max 5MB.
+          </div>
+
+          <div className="upload-controls" style={{ display: 'flex', gap: 12 }}>
+            <button className="btn-primary" onClick={handlePredict} disabled={!imageFile || loading}>
+              {loading ? 'Analyzing...' : 'Predict'}
+            </button>
+            {imageFile && (
+              <button className="btn-secondary" onClick={() => { setImageFile(null); setPreviewUrl(''); setPrediction(null); setError(''); }}>
+                Remove
+              </button>
+            )}
+          </div>
+
+          {error && <div className="error-message" style={{ marginTop: 10 }}>{error}</div>}
         </div>
-      )}
+
+        <div className="results-column" style={{ flex: 1, minWidth: 320 }}>
+          <h3>Analysis Results</h3>
+          {loading && <div className="loader"></div>}
+
+          {prediction && (
+            <div className={`prediction-result-card ${prediction.is_positive ? 'positive' : 'negative'}`} style={{ marginTop: 12, padding: 24, borderRadius: 14, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+              <h3 className="result-title" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 20 }}>
+                {prediction.is_positive ? <span style={{ color: '#dc2626', fontSize: 24 }}>⚠️</span> : <span style={{ color: '#16a34a', fontSize: 24 }}>✅</span>}
+                {prediction.is_positive ? 'Tuberculosis Detected' : 'Normal'}
+              </h3>
+
+              <div className="result-item" style={{ margin: '10px 0' }}>
+                <strong>Prediction:</strong> {prediction.Prediction}
+              </div>
+
+              <div className="recommendation" style={{ background: '#f8fafc', borderRadius: 8, padding: 12, margin: '12px 0' }}>
+                <h4 style={{ margin: 0, fontWeight: 600 }}>Recommendation:</h4>
+                <p style={{ margin: 0 }}>{prediction.recommendation}</p>
+              </div>
+
+              <div className="disclaimer" style={{ marginTop: 10 }}>
+                <strong>Important:</strong> This is not a medical diagnosis. Always consult a qualified doctor.
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

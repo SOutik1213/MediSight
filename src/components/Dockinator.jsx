@@ -10,14 +10,14 @@ const Dockinator = () => {
   const [finalReport, setFinalReport] = useState(null);
   const chatHistoryRef = useRef(null);
 
-  const HF_SPACE_URL = "https://hf.space/embed/soutik07/MediSight/api/predict_symptoms";
+  const HF_SPACE_URL = "https://soutik07-medisight.hf.space/run/predict_symptoms";
 
-  const systemPrompt = `You are Dockinator, a friendly AI medical assistant.
-Start by introducing yourself and asking the user to describe their primary symptom.
-Ask follow-up questions, one at a time, until you have enough info.
-Never give a definitive diagnosis.
+  const systemPrompt = `You are Dockinator, a friendly and empathetic AI medical assistant. 
+Start by introducing yourself and asking the user to describe their primary symptom. 
+Ask follow-up questions, one at a time, until you have enough info. 
+Never give a definitive diagnosis. 
 
-After 5–7 interactions, always end with a "Final Report".
+After 5–7 interactions, always end with a "Final Report".  
 Your response MUST be valid JSON in this schema only:
 
 {
@@ -48,62 +48,58 @@ Your response MUST be valid JSON in this schema only:
     setHistory([{ role: "system", parts: [{ text: systemPrompt }] }]);
     setIsLoading(true);
     try {
-      const response = await callGemini([{ role: "user", parts: [{ text: "Let's begin." }] }], true);
+      const response = await callGeminiAPI([{ role: "user", parts: [{ text: "Let's begin." }] }], true);
       setHistory((prev) => [...prev, { role: "model", parts: [{ text: response }] }]);
     } catch (err) {
-      setError("Failed to start conversation.");
+      setError("Failed to start. Check API key or connection.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const callGemini = async (currentHistory, ignorePrev = false) => {
+  const callGeminiAPI = async (currentHistory, ignorePrev = false) => {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
     const payload = {
-      contents: ignorePrev
-        ? currentHistory
-        : [...history.filter((h) => h.role !== "system"), ...currentHistory],
+      contents: ignorePrev ? currentHistory : [...history.filter((h) => h.role !== "system"), ...currentHistory],
       systemInstruction: { parts: [{ text: systemPrompt }] },
     };
 
-    const res = await fetch(apiUrl, {
+    const response = await fetch(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
-    if (!res.ok) {
-      const errBody = await res.json();
-      throw new Error(errBody.error?.message || "API request failed");
+    if (!response.ok) {
+      const errorBody = await response.json();
+      throw new Error(errorBody.error?.message || "API request failed");
     }
 
-    const result = await res.json();
+    const result = await response.json();
     return result.candidates[0].content.parts[0].text;
   };
 
   const getPredictionFromHF = async (symptomSummary) => {
-  const HF_SPACE_URL = "https://soutik07-medisight-api.hf.space/run/predict_symptoms";
-  try {
-    const response = await fetch(HF_SPACE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_input: symptomSummary })
-    });
+    try {
+      const response = await fetch(HF_SPACE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_input: symptomSummary }),
+      });
 
-    if (!response.ok) {
-      const errData = await response.json();
-      throw new Error(errData.error || "HF prediction failed");
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "HF prediction failed");
+      }
+
+      const result = await response.json();
+      return result;
+    } catch (err) {
+      console.error("HF error:", err);
+      return { Prediction: "Error", Confidence: 0 };
     }
-
-    const result = await response.json();
-    console.log('Dockinator HF result:', result);
-    return result; // HF Space output directly: { Prediction: "...", Confidence: 0.xx }
-  } catch (err) {
-    console.error(err);
-    return { Prediction: "Error", Confidence: 0 };
-  }
-}
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -116,16 +112,22 @@ Your response MUST be valid JSON in this schema only:
     setError(null);
 
     try {
-      const modelResponse = await callGemini([userAnswer]);
-      const jsonMatch = modelResponse.match(/```json\s*(\{[\s\S]*?\})\s*```|(\{[\s\S]*?\})/s);
+      const modelResponse = await callGeminiAPI([userAnswer]);
+      const jsonRegex = /```json\s*(\{[\s\S]*?\})\s*```|(\{[\s\S]*?\})/s;
+      const jsonMatch = modelResponse.match(jsonRegex);
+
       if (jsonMatch) {
         const jsonString = jsonMatch[1] || jsonMatch[2];
         const parsedJson = JSON.parse(jsonString);
 
         if (parsedJson?.final_report) {
-          setHistory((prev) => [...prev, { role: "model", parts: [{ text: "Analyzing with HF model..." }] }]);
+          setIsLoading(true);
+          setHistory(prev => [...prev, {role: "model", parts: [{text: "Analyzing the summary with HF model..."}]}]);
+
           const hfPrediction = await getPredictionFromHF(parsedJson.summary);
-          setFinalReport({ ...parsedJson, hf_prediction: hfPrediction });
+
+          const combinedReport = { ...parsedJson, hf_prediction: hfPrediction };
+          setFinalReport(combinedReport);
           setIsFinished(true);
           setIsLoading(false);
           return;
@@ -134,7 +136,7 @@ Your response MUST be valid JSON in this schema only:
 
       setHistory((prev) => [...prev, { role: "model", parts: [{ text: modelResponse }] }]);
     } catch (err) {
-      setError(err.message);
+      setError(`Error: ${err.message}`);
       setHistory((prev) => [...prev, { role: "model", parts: [{ text: `Error: ${err.message}` }] }]);
     } finally {
       setIsLoading(false);
@@ -144,8 +146,8 @@ Your response MUST be valid JSON in this schema only:
   const handleStartOver = () => {
     setHistory([]);
     setIsFinished(false);
-    setFinalReport(null);
     setError(null);
+    setFinalReport(null);
     startConversation();
   };
 
@@ -161,8 +163,9 @@ Your response MUST be valid JSON in this schema only:
       <div className="hf-prediction-highlight">
         <h4>HF Space Prediction</h4>
         <p>
-          <strong>Condition:</strong> {report.hf_prediction.prediction} <br />
-          <strong>Confidence:</strong> {Math.round(report.hf_prediction.confidence * 100)}%
+            <strong>Condition:</strong> {report.hf_prediction.Prediction}
+            <br/>
+            <strong>Confidence:</strong> {Math.round(report.hf_prediction.Confidence * 100)}%
         </p>
       </div>
 
@@ -182,6 +185,13 @@ Your response MUST be valid JSON in this schema only:
         ))}
       </ul>
 
+      <h4>Doctor May Recommend</h4>
+      <ul>
+        {report.final_report.doctor_may_recommend.map((item, i) => (
+          <li key={i}>{item}</li>
+        ))}
+      </ul>
+
       <button className="btn-primary" onClick={handleStartOver}>🔄 Start Over</button>
     </motion.div>
   );
@@ -193,37 +203,41 @@ Your response MUST be valid JSON in this schema only:
         <p>Your friendly AI medical guide</p>
       </header>
 
-      <div className="dockinator-main">
-        <AnimatePresence>
-          {!isFinished ? (
-            <motion.div>
-              <div ref={chatHistoryRef} className="chat-log">
-                {history.filter((h) => h.role !== "system").map((msg, idx) => (
-                  <div key={idx} className={`chat-message ${msg.role}`}>{msg.parts[0].text}</div>
-                ))}
-                {isLoading && <div className="typing-indicator"><div/><div/><div/></div>}
-                {error && <div className="chat-message model error">{error}</div>}
+      <div className="dockinator-main" style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+        {/* Chat Column */}
+        <div className="chat-column" style={{ flex: 1, minWidth: 320 }}>
+          <div ref={chatHistoryRef} className="chat-log" style={{ maxHeight: 500, overflowY: 'auto', padding: '1rem', border: '1px solid #e5e7eb', borderRadius: 12 }}>
+            {history.filter((h) => h.role !== "system").map((msg, idx) => (
+              <div key={idx} className={`chat-message ${msg.role}`} style={{ margin: '6px 0' }}>
+                {msg.parts[0].text}
               </div>
-
-              <form className="input-form" onSubmit={handleSubmit}>
-                <input
-                  type="text"
-                  value={userInput}
-                  onChange={(e) => setUserInput(e.target.value)}
-                  placeholder="Type your response..."
-                  disabled={isLoading}
-                />
-                <button type="submit" disabled={!userInput.trim() || isLoading}>Send</button>
-              </form>
-            </motion.div>
-          ) : (
-            finalReport && renderFinalReport(finalReport)
+            ))}
+            {isLoading && <div className="typing-indicator"><div/><div/><div/></div>}
+            {error && <div className="chat-message model error">{error}</div>}
+          </div>
+          {!isFinished && (
+            <form className="input-form" onSubmit={handleSubmit} style={{ marginTop: 8, display: 'flex', gap: '0.5rem' }}>
+              <input
+                type="text"
+                value={userInput}
+                onChange={(e) => setUserInput(e.target.value)}
+                placeholder="Type your response..."
+                disabled={isLoading}
+                style={{ flex: 1, padding: '0.5rem 0.75rem', borderRadius: 8, border: '1px solid #cbd5e1' }}
+              />
+              <button type="submit" disabled={!userInput.trim() || isLoading} className="btn-primary">
+                Send
+              </button>
+            </form>
           )}
-        </AnimatePresence>
+        </div>
 
-        <motion.div>
-          <img src="/Dockinator.png" alt="Dockinator AI Assistant" />
-        </motion.div>
+        {/* Final Report Column */}
+        <div className="report-column" style={{ flex: 1, minWidth: 320 }}>
+          <AnimatePresence>
+            {isFinished && finalReport && renderFinalReport(finalReport)}
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   );
