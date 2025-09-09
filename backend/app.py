@@ -125,4 +125,5 @@ demo = gr.TabbedInterface(
 
 # --- LAUNCH ---
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860, share=True, enable_queue=True)
+    demo.queue()
+    demo.launch(server_name="0.0.0.0", server_port=7860, share=True)
