@@ -7,7 +7,7 @@ const SkinCancer = ({ onBack }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const API_BASE_URL = 'http://localhost:5000/api/predict/skin/dockinator';
+  const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api/predict/skin`;
 
 
   // Drag-and-drop support

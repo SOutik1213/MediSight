@@ -89,7 +89,7 @@ Your response MUST be valid JSON in this schema only:
   const getPredictionFromLocalModel = async (symptomSummary) => {
     try {
       console.log("Sending to local model:", symptomSummary);
-      const response = await fetch('http://localhost:5000/api/predict/dockinator', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/predict/dockinator`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ user_input: symptomSummary }),

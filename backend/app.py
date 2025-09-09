@@ -17,8 +17,8 @@ CORS(app)
 
 
 # Paths for models
-skin_model_path = os.path.join(os.path.dirname(__file__), '..', 'skin_cancer_model (2).keras')
-tb_model_path = os.path.join(os.path.dirname(__file__), '..', 'Tuberculosis_model.keras')
+skin_model_path = os.path.join(os.path.dirname(__file__), 'skin_cancer_model (2).keras')
+tb_model_path = os.path.join(os.path.dirname(__file__), 'Tuberculosis_model.keras')
 transformer_model_path = os.path.join(os.path.dirname(__file__), 'transformer_model')
 
 
