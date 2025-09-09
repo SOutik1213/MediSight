@@ -7,11 +7,12 @@ const TB = ({ onBack }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // CHANGED: Use a single API endpoint for the entire Gradio app
-  const API_URL = "https://soutik07-medisight.hf.space/run/predict";
+  const API_URL = `${import.meta.env.VITE_API_URL}/run/predict_tb`;
 
+  // Drag-and-drop support
   const handleFileChange = (e) => {
-    const file = e.dataTransfer ? e.dataTransfer.files[0] : e.target.files[0];
+    let file = e.dataTransfer ? e.dataTransfer.files[0] : e.target.files[0];
+
     if (file && file.type.startsWith('image/')) {
       setImageFile(file);
       setPreviewUrl(URL.createObjectURL(file));
@@ -24,8 +25,14 @@ const TB = ({ onBack }) => {
     }
   };
 
-  const handleDrop = (e) => { e.preventDefault(); handleFileChange(e); };
-  const handleDragOver = (e) => { e.preventDefault(); };
+  const handleDrop = (e) => {
+    e.preventDefault();
+    handleFileChange(e);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
 
   const handlePredict = async () => {
     if (!imageFile) {
@@ -39,25 +46,23 @@ const TB = ({ onBack }) => {
 
     try {
       const reader = new FileReader();
-      reader.readAsDataURL(imageFile);
+      reader.readAsDataURL(imageFile); // convert image to base64
       reader.onloadend = async () => {
         const base64Image = reader.result;
 
         const response = await fetch(API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          // CHANGED: Added tab index 1 for TB model
-          body: JSON.stringify({ data: [1, base64Image] }),
+          body: JSON.stringify({ data: [base64Image] }), // Gradio expects `data` array
         });
 
         if (!response.ok) {
-          const errData = await response.json();
-          throw new Error(errData.error || 'Prediction failed');
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Prediction failed');
         }
 
-        const result = await response.json(); // HF Space returns object directly
-        // The Gradio API returns a list of results, so we need to get the first one
-        const pred = result.data[0];
+        const result = await response.json();
+        const pred = result.data?.[0];
 
         if (pred) {
           let recommendation = '';
@@ -67,15 +72,15 @@ const TB = ({ onBack }) => {
             recommendation = 'No significant risk detected. Continue with regular health checkups.';
           }
 
-          setPrediction({ ...pred, recommendation, is_positive: pred.Prediction === 'Tuberculosis' });
+          setPrediction({ ...pred, recommendation });
         } else {
           setPrediction(null);
           setError('Prediction failed.');
         }
       };
     } catch (err) {
-      console.error(err);
       setError(err.message || 'An error occurred during prediction.');
+      console.error('Prediction error:', err);
     } finally {
       setLoading(false);
     }
@@ -88,7 +93,9 @@ const TB = ({ onBack }) => {
 
   return (
     <div className="prediction-module-container">
-      <button className="btn-secondary back-button" onClick={onBack}>← Back</button>
+      <button className="btn-secondary back-button" onClick={onBack}>
+        ← Back
+      </button>
 
       <div className="header">
         <h2>Tuberculosis (TB) Prediction</h2>
@@ -150,10 +157,10 @@ const TB = ({ onBack }) => {
           {loading && <div className="loader"></div>}
 
           {prediction && (
-            <div className={`prediction-result-card ${prediction.is_positive ? 'positive' : 'negative'}`} style={{ marginTop: 12, padding: 24, borderRadius: 14, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+            <div className={`prediction-result-card ${getResultClass(prediction.Prediction)}`} style={{ marginTop: 12, padding: 24, borderRadius: 14, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
               <h3 className="result-title" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 20 }}>
-                {prediction.is_positive ? <span style={{ color: '#dc2626', fontSize: 24 }}>⚠️</span> : <span style={{ color: '#16a34a', fontSize: 24 }}>✅</span>}
-                {prediction.is_positive ? 'Tuberculosis Detected' : 'Normal'}
+                {prediction.Prediction === 'Tuberculosis' ? <span style={{ color: '#dc2626', fontSize: 24 }}>⚠️</span> : <span style={{ color: '#16a34a', fontSize: 24 }}>✅</span>}
+                {prediction.Prediction === 'Tuberculosis' ? 'Tuberculosis Detected' : 'Normal'}
               </h3>
 
               <div className="result-item" style={{ margin: '10px 0' }}>

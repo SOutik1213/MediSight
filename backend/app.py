@@ -114,9 +114,9 @@ def predict_symptoms(text):
         return {"Error": str(e)}
 
 # --- GRADIO INTERFACES ---
-skin_interface = gr.Interface(fn=predict_skin, inputs=gr.Image(type="pil"), outputs="json", title="Skin Cancer Prediction")
-tb_interface = gr.Interface(fn=predict_tb, inputs=gr.Image(type="pil"), outputs="json", title="Tuberculosis Prediction")
-symptom_interface = gr.Interface(fn=predict_symptoms, inputs="text", outputs="json", title="Symptom-based Disease Prediction")
+skin_interface = gr.Interface(fn=predict_skin, inputs=gr.Image(type="pil"), outputs="json", title="Skin Cancer Prediction",api_name="predict_skin")
+tb_interface = gr.Interface(fn=predict_tb, inputs=gr.Image(type="pil"), outputs="json", title="Tuberculosis Prediction",api_name="predict_tb")
+symptom_interface = gr.Interface(fn=predict_symptoms, inputs="text", outputs="json", title="Symptom-based Disease Prediction",api_name="predict_symptoms")
 
 demo = gr.TabbedInterface(
     [skin_interface, tb_interface, symptom_interface],

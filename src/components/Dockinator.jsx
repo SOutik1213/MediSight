@@ -10,8 +10,7 @@ const Dockinator = () => {
   const [finalReport, setFinalReport] = useState(null);
   const chatHistoryRef = useRef(null);
 
-  // CHANGED: Use a single API endpoint for the entire Gradio app
-  const HF_SPACE_URL = "https://soutik07-medisight.hf.space/run/predict";
+  const HF_SPACE_URL = "https://hf.space/embed/soutik07/MediSight/api/predict_symptoms";
 
   const systemPrompt = `You are Dockinator, a friendly and empathetic AI medical assistant. 
 Start by introducing yourself and asking the user to describe their primary symptom. 
@@ -81,13 +80,13 @@ Your response MUST be valid JSON in this schema only:
     return result.candidates[0].content.parts[0].text;
   };
 
+  // UPDATED: Hugging Face API call
   const getPredictionFromHF = async (symptomSummary) => {
     try {
       const response = await fetch(HF_SPACE_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // CHANGED: Added tab index 2 for symptom prediction model
-        body: JSON.stringify({ data: [2, symptomSummary] }),
+        body: JSON.stringify({ user_input: symptomSummary }),
       });
 
       if (!response.ok) {
@@ -96,11 +95,10 @@ Your response MUST be valid JSON in this schema only:
       }
 
       const result = await response.json();
-      // The Gradio API returns a list of results, so we need to get the first one
-      return result.data[0];
+      return result; // { prediction: "...", confidence: 0.xx }
     } catch (err) {
       console.error("HF error:", err);
-      return { Prediction: "Error", Confidence: 0 };
+      return { prediction: "Error", confidence: 0 };
     }
   };
 
@@ -166,9 +164,9 @@ Your response MUST be valid JSON in this schema only:
       <div className="hf-prediction-highlight">
         <h4>HF Space Prediction</h4>
         <p>
-            <strong>Condition:</strong> {report.hf_prediction.Prediction}
+            <strong>Condition:</strong> {report.hf_prediction.prediction}
             <br/>
-            <strong>Confidence:</strong> {Math.round(report.hf_prediction.Confidence * 100)}%
+            <strong>Confidence:</strong> {Math.round(report.hf_prediction.confidence * 100)}%
         </p>
       </div>
 
@@ -188,17 +186,11 @@ Your response MUST be valid JSON in this schema only:
         ))}
       </ul>
 
-      <h4>Doctor May Recommend</h4>
-      <ul>
-        {report.final_report.doctor_may_recommend.map((item, i) => (
-          <li key={i}>{item}</li>
-        ))}
-      </ul>
-
       <button className="btn-primary" onClick={handleStartOver}>🔄 Start Over</button>
     </motion.div>
   );
 
+  // Render function stays mostly the same
   return (
     <div className="dockinator-page">
       <header className="dockinator-header">
@@ -206,41 +198,37 @@ Your response MUST be valid JSON in this schema only:
         <p>Your friendly AI medical guide</p>
       </header>
 
-      <div className="dockinator-main" style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
-        {/* Chat Column */}
-        <div className="chat-column" style={{ flex: 1, minWidth: 320 }}>
-          <div ref={chatHistoryRef} className="chat-log" style={{ maxHeight: 500, overflowY: 'auto', padding: '1rem', border: '1px solid #e5e7eb', borderRadius: 12 }}>
-            {history.filter((h) => h.role !== "system").map((msg, idx) => (
-              <div key={idx} className={`chat-message ${msg.role}`} style={{ margin: '6px 0' }}>
-                {msg.parts[0].text}
+      <div className="dockinator-main">
+        <AnimatePresence>
+          {!isFinished ? (
+            <motion.div>
+              <div ref={chatHistoryRef} className="chat-log">
+                {history.filter((h) => h.role !== "system").map((msg, idx) => (
+                  <div key={idx} className={`chat-message ${msg.role}`}>
+                    {msg.parts[0].text}
+                  </div>
+                ))}
+                {isLoading && <div className="typing-indicator"><div/><div/><div/></div>}
+                {error && <div className="chat-message model error">{error}</div>}
               </div>
-            ))}
-            {isLoading && <div className="typing-indicator"><div/><div/><div/></div>}
-            {error && <div className="chat-message model error">{error}</div>}
-          </div>
-          {!isFinished && (
-            <form className="input-form" onSubmit={handleSubmit} style={{ marginTop: 8, display: 'flex', gap: '0.5rem' }}>
-              <input
-                type="text"
-                value={userInput}
-                onChange={(e) => setUserInput(e.target.value)}
-                placeholder="Type your response..."
-                disabled={isLoading}
-                style={{ flex: 1, padding: '0.5rem 0.75rem', borderRadius: 8, border: '1px solid #cbd5e1' }}
-              />
-              <button type="submit" disabled={!userInput.trim() || isLoading} className="btn-primary">
-                Send
-              </button>
-            </form>
+              <form className="input-form" onSubmit={handleSubmit}>
+                <input
+                  type="text"
+                  value={userInput}
+                  onChange={(e) => setUserInput(e.target.value)}
+                  placeholder="Type your response..."
+                  disabled={isLoading}
+                />
+                <button type="submit" disabled={!userInput.trim() || isLoading}>Send</button>
+              </form>
+            </motion.div>
+          ) : (
+            finalReport && renderFinalReport(finalReport)
           )}
-        </div>
-
-        {/* Final Report Column */}
-        <div className="report-column" style={{ flex: 1, minWidth: 320 }}>
-          <AnimatePresence>
-            {isFinished && finalReport && renderFinalReport(finalReport)}
-          </AnimatePresence>
-        </div>
+        </AnimatePresence>
+        <motion.div>
+          <img src="/Dockinator.png" alt="Dockinator AI Assistant" />
+        </motion.div>
       </div>
     </div>
   );
