@@ -7,10 +7,10 @@ const Dockinator = () => {
   const [isFinished, setIsFinished] = useState(false);
   const [error, setError] = useState(null);
   const [userInput, setUserInput] = useState("");
-  const [finalReport, setFinalReport] = useState(null); // State to hold the final report
+  const [finalReport, setFinalReport] = useState(null);
   const chatHistoryRef = useRef(null);
 
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const HF_SPACE_URL = "https://hf.space/embed/soutik07/MediSight/api/predict_symptoms";
 
   const systemPrompt = `You are Dockinator, a friendly and empathetic AI medical assistant. 
 Start by introducing yourself and asking the user to describe their primary symptom. 
@@ -48,10 +48,7 @@ Your response MUST be valid JSON in this schema only:
     setHistory([{ role: "system", parts: [{ text: systemPrompt }] }]);
     setIsLoading(true);
     try {
-      const response = await callGeminiAPI(
-        [{ role: "user", parts: [{ text: "Let's begin." }] }],
-        true
-      );
+      const response = await callGeminiAPI([{ role: "user", parts: [{ text: "Let's begin." }] }], true);
       setHistory((prev) => [...prev, { role: "model", parts: [{ text: response }] }]);
     } catch (err) {
       setError("Failed to start. Check API key or connection.");
@@ -61,12 +58,10 @@ Your response MUST be valid JSON in this schema only:
   };
 
   const callGeminiAPI = async (currentHistory, ignorePrev = false) => {
-    // ... (This function remains the same as before)
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
     const payload = {
-      contents: ignorePrev
-        ? currentHistory
-        : [...history.filter((h) => h.role !== "system"), ...currentHistory],
+      contents: ignorePrev ? currentHistory : [...history.filter((h) => h.role !== "system"), ...currentHistory],
       systemInstruction: { parts: [{ text: systemPrompt }] },
     };
 
@@ -84,23 +79,25 @@ Your response MUST be valid JSON in this schema only:
     const result = await response.json();
     return result.candidates[0].content.parts[0].text;
   };
-  
-  // NEW FUNCTION to call your local backend
-  const getPredictionFromLocalModel = async (symptomSummary) => {
-    try {
-      console.log("Sending to local model:", symptomSummary);
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/run/predict_symptoms`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_input: symptomSummary }),
-      });
-      if (!response.ok) throw new Error("Local model prediction failed.");
-      
-      const result = await response.json();
-      return result; // e.g., { prediction: "Condition_10", confidence: 0.64 }
 
+  // UPDATED: Hugging Face API call
+  const getPredictionFromHF = async (symptomSummary) => {
+    try {
+      const response = await fetch(HF_SPACE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_input: symptomSummary }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "HF prediction failed");
+      }
+
+      const result = await response.json();
+      return result; // { prediction: "...", confidence: 0.xx }
     } catch (err) {
-      console.error("Local model error:", err);
+      console.error("HF error:", err);
       return { prediction: "Error", confidence: 0 };
     }
   };
@@ -125,29 +122,20 @@ Your response MUST be valid JSON in this schema only:
         const parsedJson = JSON.parse(jsonString);
 
         if (parsedJson?.final_report) {
-          // It's the final report!
-          setIsLoading(true); // Show loading while we call our own model
-          setHistory(prev => [...prev, {role: "model", parts: [{text: "Analyzing the summary with our specialized model..."}]}]);
+          setIsLoading(true);
+          setHistory(prev => [...prev, {role: "model", parts: [{text: "Analyzing the summary with HF model..."}]}]);
 
-          // Call our local model with the summary from Gemini
-          const localPrediction = await getPredictionFromLocalModel(parsedJson.summary);
+          const hfPrediction = await getPredictionFromHF(parsedJson.summary);
 
-          // Add our model's prediction to the final report object
-          const combinedReport = {
-            ...parsedJson,
-            local_model_prediction: localPrediction,
-          };
-          
-          setFinalReport(combinedReport); // Set the full report to be displayed
-          setIsFinished(true); // Trigger the final report UI
+          const combinedReport = { ...parsedJson, hf_prediction: hfPrediction };
+          setFinalReport(combinedReport);
+          setIsFinished(true);
           setIsLoading(false);
-          return; // End the submission process here
+          return;
         }
       }
-      
-      // If it's not the final report, just continue the conversation
-      setHistory((prev) => [...prev, { role: "model", parts: [{ text: modelResponse }] }]);
 
+      setHistory((prev) => [...prev, { role: "model", parts: [{ text: modelResponse }] }]);
     } catch (err) {
       setError(`Error: ${err.message}`);
       setHistory((prev) => [...prev, { role: "model", parts: [{ text: `Error: ${err.message}` }] }]);
@@ -164,7 +152,6 @@ Your response MUST be valid JSON in this schema only:
     startConversation();
   };
 
-  // UPDATED renderFinalReport to show the combined result
   const renderFinalReport = (report) => (
     <motion.div
       key="report"
@@ -174,14 +161,12 @@ Your response MUST be valid JSON in this schema only:
       className="final-report-card"
     >
       <h3>📋 Final Report</h3>
-      
-      {/* This is the new part for your model's prediction */}
-      <div className="local-prediction-highlight">
-        <h4>Specialized Model Prediction</h4>
+      <div className="hf-prediction-highlight">
+        <h4>HF Space Prediction</h4>
         <p>
-            <strong>Condition:</strong> {report.local_model_prediction.prediction}
+            <strong>Condition:</strong> {report.hf_prediction.prediction}
             <br/>
-            <strong>Confidence:</strong> {Math.round(report.local_model_prediction.confidence * 100)}%
+            <strong>Confidence:</strong> {Math.round(report.hf_prediction.confidence * 100)}%
         </p>
       </div>
 
@@ -205,6 +190,7 @@ Your response MUST be valid JSON in this schema only:
     </motion.div>
   );
 
+  // Render function stays mostly the same
   return (
     <div className="dockinator-page">
       <header className="dockinator-header">
@@ -215,7 +201,7 @@ Your response MUST be valid JSON in this schema only:
       <div className="dockinator-main">
         <AnimatePresence>
           {!isFinished ? (
-            <motion.div /* Chat Panel */ >
+            <motion.div>
               <div ref={chatHistoryRef} className="chat-log">
                 {history.filter((h) => h.role !== "system").map((msg, idx) => (
                   <div key={idx} className={`chat-message ${msg.role}`}>
@@ -240,7 +226,7 @@ Your response MUST be valid JSON in this schema only:
             finalReport && renderFinalReport(finalReport)
           )}
         </AnimatePresence>
-        <motion.div /* Dockinator Character */ >
+        <motion.div>
           <img src="/Dockinator.png" alt="Dockinator AI Assistant" />
         </motion.div>
       </div>
