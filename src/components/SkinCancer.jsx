@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 
 const SkinCancer = ({ onBack }) => {
   const [imageFile, setImageFile] = useState(null);
@@ -7,12 +7,15 @@ const SkinCancer = ({ onBack }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const API_BASE_URL = `${import.meta.env.VITE_API_URL}/run/predict_skin`;
+  const fileInputRef = useRef(null);
 
-  // Drag-and-drop support
+  // Hugging Face Space API
+  const API_BASE_URL = 'https://soutik07-medisight-api.hf.space/api/predict/';
+  const FN_INDEX = 0; // index of predict_skin in your Gradio app (0-based)
+
+  // --- Drag & Drop / File Handling ---
   const handleFileChange = (e) => {
-    let file = e.dataTransfer ? e.dataTransfer.files[0] : e.target.files[0];
-
+    const file = e.dataTransfer ? e.dataTransfer.files[0] : e.target.files[0];
     if (file && file.type.startsWith('image/')) {
       setImageFile(file);
       setPreviewUrl(URL.createObjectURL(file));
@@ -21,6 +24,7 @@ const SkinCancer = ({ onBack }) => {
     } else {
       setImageFile(null);
       setPreviewUrl('');
+      setPrediction(null);
       setError('Please select a valid image file.');
     }
   };
@@ -30,63 +34,75 @@ const SkinCancer = ({ onBack }) => {
     handleFileChange(e);
   };
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
-  };
+  const handleDragOver = (e) => e.preventDefault();
 
+  // --- Prediction Handler ---
   const handlePredict = async () => {
     if (!imageFile) return;
 
     setLoading(true);
     setError('');
+    setPrediction(null);
 
     try {
       const reader = new FileReader();
-      reader.readAsDataURL(imageFile); // convert image to base64
+      reader.readAsDataURL(imageFile);
       reader.onloadend = async () => {
-        const base64Image = reader.result;
+        try {
+          // Remove "data:image/..." prefix for Gradio HF API
+          const base64Image = reader.result.split(',')[1];
 
-        const response = await fetch(API_BASE_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ data: [base64Image] }), // Gradio expects `data` array
-        });
+          const response = await fetch(API_BASE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              data: [base64Image],
+              fn_index: FN_INDEX
+            }),
+          });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Prediction failed');
-        }
+          if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || 'Prediction failed');
+          }
 
-        const result = await response.json();
-        const pred = result.data?.[0];
+          const result = await response.json();
+          console.log('Gradio response:', result);
 
-        if (pred) {
-          const isMalignant = pred["Is Malignant"];
-          let riskLevel = 'Low';
-          if (isMalignant) riskLevel = pred.Confidence > 0.7 ? 'High' : 'Medium';
+          const pred = result.data?.[0];
+          if (pred) {
+            const isMalignant = pred['Is Malignant'];
+            const confidence = parseFloat(pred.Confidence);
 
-          let recommendation = '';
-          if (isMalignant && pred.Confidence > 0.7)
-            recommendation = "High risk detected. Please consult a dermatologist immediately.";
-          else if (isMalignant)
-            recommendation = "A potential risk has been detected. We strongly recommend consulting a dermatologist.";
-          else
-            recommendation = "The analysis did not find a significant risk. Continue with regular skin self-examinations.";
+            let riskLevel = 'Low';
+            if (isMalignant) riskLevel = confidence > 0.7 ? 'High' : 'Medium';
 
-          setPrediction({ ...pred, risk_level: riskLevel, recommendation });
-        } else {
-          setPrediction(null);
-          setError('Prediction failed.');
+            let recommendation = '';
+            if (isMalignant && confidence > 0.7)
+              recommendation = 'High risk detected. Please consult a dermatologist immediately.';
+            else if (isMalignant)
+              recommendation = 'A potential risk has been detected. We strongly recommend consulting a dermatologist.';
+            else
+              recommendation = 'The analysis did not find a significant risk. Continue with regular skin self-examinations.';
+
+            setPrediction({ ...pred, risk_level: riskLevel, recommendation });
+          } else {
+            setError('Prediction failed.');
+          }
+        } catch (err) {
+          console.error(err);
+          setError(err.message || 'Prediction failed.');
+        } finally {
+          setLoading(false);
         }
       };
     } catch (err) {
-      setError(err.message || 'An error occurred during prediction');
-      console.error('Prediction error:', err);
-    } finally {
       setLoading(false);
+      setError(err.message || 'An error occurred.');
     }
   };
 
+  // --- Risk Badge Class ---
   const getRiskClass = (level) => {
     if (!level) return '';
     const risk = level.toLowerCase();
@@ -95,6 +111,7 @@ const SkinCancer = ({ onBack }) => {
     return 'risk-low';
   };
 
+  // --- JSX ---
   return (
     <div className="prediction-module-container">
       <button className="btn-secondary back-button" onClick={onBack}>
@@ -112,19 +129,32 @@ const SkinCancer = ({ onBack }) => {
       </div>
 
       <div className="prediction-content-area" style={{ display: 'flex', gap: '2.5rem', flexWrap: 'wrap' }}>
+        {/* Upload Column */}
         <div className="uploader-column" style={{ flex: 1, minWidth: 320 }}>
           <h3>Upload Image</h3>
           <div
             className="image-dropzone tb-dropzone"
             onDrop={handleDrop}
             onDragOver={handleDragOver}
-            style={{ cursor: 'pointer', minHeight: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, transition: 'border 0.2s' }}
-            onClick={() => document.getElementById('skin-image-upload').click()}
+            onClick={() => fileInputRef.current.click()}
+            style={{
+              cursor: 'pointer',
+              minHeight: 180,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 16,
+              transition: 'border 0.2s',
+            }}
           >
             {previewUrl ? (
-              <img src={previewUrl} alt="Preview" className="tb-preview-img" style={{ maxWidth: 220, maxHeight: 180, borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }} />
+              <img
+                src={previewUrl}
+                alt="Preview"
+                style={{ maxWidth: 220, maxHeight: 180, borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}
+              />
             ) : (
-              <span className="drop-text" style={{ color: '#64748b', fontSize: 16 }}>
+              <span style={{ color: '#64748b', fontSize: 16, textAlign: 'center' }}>
                 <span style={{ fontSize: 32, display: 'block', marginBottom: 8 }}>📤</span>
                 Drag & drop or click to upload image
               </span>
@@ -132,12 +162,14 @@ const SkinCancer = ({ onBack }) => {
           </div>
 
           <input
+            ref={fileInputRef}
             id="skin-image-upload"
             type="file"
             accept="image/*"
             onChange={handleFileChange}
             style={{ display: 'none' }}
           />
+
           <div style={{ fontSize: 13, color: '#64748b', marginBottom: 12 }}>
             Supported: JPG, PNG, etc. Max 5MB.
           </div>
@@ -147,7 +179,15 @@ const SkinCancer = ({ onBack }) => {
               {loading ? 'Analyzing...' : 'Predict'}
             </button>
             {imageFile && (
-              <button className="btn-secondary" onClick={() => { setImageFile(null); setPreviewUrl(''); setPrediction(null); setError(''); }}>
+              <button
+                className="btn-secondary"
+                onClick={() => {
+                  setImageFile(null);
+                  setPreviewUrl('');
+                  setPrediction(null);
+                  setError('');
+                }}
+              >
                 Remove
               </button>
             )}
@@ -156,34 +196,46 @@ const SkinCancer = ({ onBack }) => {
           {error && <div className="error-message" style={{ marginTop: 10 }}>{error}</div>}
         </div>
 
+        {/* Results Column */}
         <div className="results-column" style={{ flex: 1, minWidth: 320 }}>
           <h3>Analysis Results</h3>
           {loading && <div className="loader"></div>}
 
           {prediction && (
-            <div className={`prediction-result-card ${prediction.is_malignant ? 'positive' : 'negative'}`} style={{ marginTop: 12, padding: 24, borderRadius: 14, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
-              <h3 className="result-title" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 20 }}>
-                {prediction.is_malignant ? <span style={{ color: '#dc2626', fontSize: 24 }}>⚠️</span> : <span style={{ color: '#16a34a', fontSize: 24 }}>✅</span>}
-                {prediction.is_malignant ? 'Potential Risk Detected' : 'Low Risk'}
+            <div
+              className={`prediction-result-card ${prediction['Is Malignant'] ? 'positive' : 'negative'}`}
+              style={{
+                marginTop: 12,
+                padding: 24,
+                borderRadius: 14,
+                boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+              }}
+            >
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 20 }}>
+                {prediction['Is Malignant'] ? <span style={{ color: '#dc2626', fontSize: 24 }}>⚠️</span> : <span style={{ color: '#16a34a', fontSize: 24 }}>✅</span>}
+                {prediction['Is Malignant'] ? 'Potential Risk Detected' : 'Low Risk'}
               </h3>
 
-              <div className="result-item" style={{ margin: '10px 0' }}>
+              <div style={{ margin: '10px 0' }}>
                 <strong>Prediction:</strong> {prediction.Prediction}
               </div>
 
-              <div className="result-item" style={{ margin: '10px 0' }}>
+              <div style={{ margin: '10px 0' }}>
                 <strong>Risk Level:</strong>{' '}
-                <span className={`risk-level ${getRiskClass(prediction.risk_level)}`} style={{ color: '#fff', padding: '2px 10px', borderRadius: 8, marginLeft: 6 }}>
+                <span
+                  className={`risk-level ${getRiskClass(prediction.risk_level)}`}
+                  style={{ color: '#fff', padding: '2px 10px', borderRadius: 8, marginLeft: 6 }}
+                >
                   {prediction.risk_level}
                 </span>
               </div>
 
-              <div className="recommendation" style={{ background: '#f8fafc', borderRadius: 8, padding: 12, margin: '12px 0' }}>
+              <div style={{ background: '#f8fafc', borderRadius: 8, padding: 12, margin: '12px 0' }}>
                 <h4 style={{ margin: 0, fontWeight: 600 }}>Recommendation:</h4>
                 <p style={{ margin: 0 }}>{prediction.recommendation}</p>
               </div>
 
-              <div className="disclaimer" style={{ marginTop: 10 }}>
+              <div style={{ marginTop: 10 }}>
                 <strong>Important:</strong> This is not a medical diagnosis. Always consult a qualified dermatologist.
               </div>
             </div>
