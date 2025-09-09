@@ -82,25 +82,28 @@ Your response MUST be valid JSON in this schema only:
     return result.candidates[0].content.parts[0].text;
   };
 
-  const getPredictionFromHF = async (summary) => {
-    try {
-      const res = await fetch(HF_SPACE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_input: summary }),
-      });
+  const getPredictionFromHF = async (symptomSummary) => {
+  const HF_SPACE_URL = "https://soutik07-medisight-api.hf.space/run/predict_symptoms";
+  try {
+    const response = await fetch(HF_SPACE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_input: symptomSummary })
+    });
 
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || "HF prediction failed");
-      }
-
-      return await res.json();
-    } catch (err) {
-      console.error("HF error:", err);
-      return { prediction: "Error", confidence: 0 };
+    if (!response.ok) {
+      const errData = await response.json();
+      throw new Error(errData.error || "HF prediction failed");
     }
-  };
+
+    const result = await response.json();
+    console.log('Dockinator HF result:', result);
+    return result; // HF Space output directly: { Prediction: "...", Confidence: 0.xx }
+  } catch (err) {
+    console.error(err);
+    return { Prediction: "Error", Confidence: 0 };
+  }
+}
 
   const handleSubmit = async (e) => {
     e.preventDefault();
