@@ -1,4 +1,3 @@
-
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import tensorflow as tf
@@ -6,36 +5,24 @@ import numpy as np
 from PIL import Image
 import io
 import os
-import requests
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
-
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 app = Flask(__name__)
-CORS(app) 
+CORS(app)
 
-
+# --- Lazy-loaded Models ---
+skin_model = None
+tb_model = None
+transformer_model = None
+tokenizer = None
 
 # Paths for models
 skin_model_path = os.path.join(os.path.dirname(__file__), 'skin_cancer_model (2).keras')
 tb_model_path = os.path.join(os.path.dirname(__file__), 'Tuberculosis_model.keras')
 transformer_model_path = os.path.join(os.path.dirname(__file__), 'transformer_model')
 
-
-
-# Load the models
-skin_model = tf.keras.models.load_model(skin_model_path)
-print(f"Skin Cancer model loaded successfully from: {skin_model_path}")
-tb_model = tf.keras.models.load_model(tb_model_path)
-print(f"Tuberculosis model loaded successfully from: {tb_model_path}")
-# Load the transformer model and tokenizer
-tokenizer = AutoTokenizer.from_pretrained(transformer_model_path)
-transformer_model = AutoModelForSequenceClassification.from_pretrained(transformer_model_path)
-print(f"Transformer model loaded successfully from: {transformer_model_path}")
-
-# --- CONFIGURATIONS ---
-
-# Skin Cancer configuration
+# Disease & Prediction Configurations
 DISEASE_NAMES = [
     '(vertigo) Paroymsal  Positional Vertigo', 'AIDS', 'Acne', 'Alcoholic hepatitis', 'Allergy', 
     'Arthritis', 'Bronchial Asthma', 'Cervical spondylosis', 'Chicken pox', 'Chronic cholestasis', 
@@ -60,28 +47,41 @@ SKIN_CANCEROUS_CLASSES = {
     'Basal cell carcinoma', 
     'Melanoma'
 }
-SKIN_CONFIDENCE_THRESHOLD = 0.50 
-
-# Tuberculosis configuration
+SKIN_CONFIDENCE_THRESHOLD = 0.50
 TB_CLASS_NAMES = ['Tuberculosis', 'Normal']
 
+# --- Lazy Loader Functions ---
+def load_skin_model():
+    global skin_model
+    if skin_model is None:
+        skin_model = tf.keras.models.load_model(skin_model_path)
+        print(f"Skin Cancer model loaded from: {skin_model_path}")
+    return skin_model
 
-# --- IMAGE PREPROCESSING ---
+def load_tb_model():
+    global tb_model
+    if tb_model is None:
+        tb_model = tf.keras.models.load_model(tb_model_path)
+        print(f"Tuberculosis model loaded from: {tb_model_path}")
+    return tb_model
 
+def load_transformer_model():
+    global transformer_model, tokenizer
+    if transformer_model is None or tokenizer is None:
+        tokenizer = AutoTokenizer.from_pretrained(transformer_model_path)
+        transformer_model = AutoModelForSequenceClassification.from_pretrained(transformer_model_path)
+        print(f"Transformer model loaded from: {transformer_model_path}")
+    return transformer_model, tokenizer
+
+# --- Image Preprocessing ---
 def preprocess_image(image_data, size=(224, 224)):
-    """Preprocesses the uploaded image for model prediction."""
-    try:
-        image = Image.open(io.BytesIO(image_data)).convert('RGB')
-        image = image.resize(size)
-        image_array = np.array(image) / 255.0
-        image_array = np.expand_dims(image_array, axis=0)
-        return image_array
-    except Exception as e:
-        raise ValueError(f"Error preprocessing image: {str(e)}")
+    image = Image.open(io.BytesIO(image_data)).convert('RGB')
+    image = image.resize(size)
+    image_array = np.array(image) / 255.0
+    image_array = np.expand_dims(image_array, axis=0)
+    return image_array
 
-
-# --- API ROUTES ---
-
+# --- API Routes ---
 @app.route('/api/health', methods=['GET'])
 def health_check():
     return jsonify({'status': 'healthy', 'message': 'Prediction API is running'})
@@ -94,13 +94,12 @@ def predict_dockinator():
         if not user_input:
             return jsonify({'error': 'No input provided'}), 400
 
-        inputs = tokenizer(user_input, return_tensors="pt")
+        model, tok = load_transformer_model()
+        inputs = tok(user_input, return_tensors="pt")
         with torch.no_grad():
-            logits = transformer_model(**inputs).logits
+            logits = model(**inputs).logits
         
         predicted_class_id = logits.argmax().item()
-        
-        # Use the mapping to get the disease name
         predicted_class_name = DISEASE_NAMES[predicted_class_id] if 0 <= predicted_class_id < len(DISEASE_NAMES) else "Unknown Condition"
         
         result = {
@@ -113,16 +112,15 @@ def predict_dockinator():
 
 @app.route('/api/predict/skin', methods=['POST'])
 def predict_skin():
-    """Endpoint for Skin Cancer prediction."""
     try:
         if 'image' not in request.files:
             return jsonify({'error': 'No image provided'}), 400
         
         file = request.files['image']
-        image_data = file.read()
+        processed_image = preprocess_image(file.read())
         
-        processed_image = preprocess_image(image_data)
-        predictions = skin_model.predict(processed_image)
+        model = load_skin_model()
+        predictions = model.predict(processed_image)
         prediction_prob = predictions[0]
         
         predicted_class_idx = np.argmax(prediction_prob)
@@ -134,14 +132,11 @@ def predict_skin():
         is_final_malignant = is_cancerous_type and is_confident
         
         top_3_indices = np.argsort(prediction_prob)[-3:][::-1]
-        top_3_predictions = []
-        for idx in top_3_indices:
-            class_name = SKIN_CLASS_NAMES[idx]
-            top_3_predictions.append({
-                'class': class_name,
-                'confidence': float(prediction_prob[idx]),
-                'is_malignant': class_name in SKIN_CANCEROUS_CLASSES
-            })
+        top_3_predictions = [{
+            'class': SKIN_CLASS_NAMES[idx],
+            'confidence': float(prediction_prob[idx]),
+            'is_malignant': SKIN_CLASS_NAMES[idx] in SKIN_CANCEROUS_CLASSES
+        } for idx in top_3_indices]
         
         show_re = ["Potential Risk Detected", "No Significant Risk Detected 👍🏼"]
         result = {
@@ -159,23 +154,17 @@ def predict_skin():
 
 @app.route('/api/predict/tb', methods=['POST'])
 def predict_tb():
-    """New endpoint for Tuberculosis prediction with corrected logic."""
     try:
         if 'image' not in request.files:
             return jsonify({'error': 'No X-ray image provided'}), 400
 
         file = request.files['image']
-        image_data = file.read()
-
-        processed_image = preprocess_image(image_data)
-        predictions = tb_model.predict(processed_image)
+        processed_image = preprocess_image(file.read())
         
-        # --- LOGIC CORRECTION ---
-        # This new logic correctly interprets the model's output.
-        # It checks if the model gives one or two outputs and handles both cases.
+        model = load_tb_model()
+        predictions = model.predict(processed_image)
+        
         if predictions.shape[1] == 1:
-            # Case 1: Model returns a single value (sigmoid output)
-            # We assume this value is the probability of 'Tuberculosis'
             tb_confidence = float(predictions[0][0])
             if tb_confidence > 0.5:
                 predicted_class = 'Tuberculosis'
@@ -184,19 +173,13 @@ def predict_tb():
                 predicted_class = 'Normal'
                 confidence = 1.0 - tb_confidence
         else:
-            # Case 2: Model returns two values (softmax output)
-            # The original logic works here, but we use the correct class order.
-            prediction_prob = predictions[0]
-            # Assuming class order is ['Normal', 'Tuberculosis']
-            normal_prob, tb_prob = prediction_prob[0], prediction_prob[1]
-
+            normal_prob, tb_prob = predictions[0][0], predictions[0][1]
             if tb_prob > normal_prob:
                 predicted_class = 'Tuberculosis'
                 confidence = float(tb_prob)
             else:
                 predicted_class = 'Normal'
                 confidence = float(normal_prob)
-
 
         result = {
             'prediction': predicted_class,
@@ -208,8 +191,7 @@ def predict_tb():
     except Exception as e:
         return jsonify({'error': f'TB Prediction failed: {str(e)}'}), 500
 
-# --- RECOMMENDATION HELPERS ---
-
+# --- Recommendation Helpers ---
 def get_skin_recommendation(is_final_malignant, confidence):
     if is_final_malignant and confidence > 0.7:
         return "High risk detected. Please consult a dermatologist immediately."
@@ -226,7 +208,7 @@ def get_tb_recommendation(prediction, confidence):
     else:
         return "The analysis shows no significant signs of Tuberculosis. If you have symptoms, please consult a doctor."
 
-
+# --- App Entry Point ---
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
