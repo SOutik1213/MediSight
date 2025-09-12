@@ -8,6 +8,10 @@ Skin Cancer Detection: Upload an image of a skin lesion, and our vision model wi
 
 Tuberculosis (TB) Screening: Analyze a chest X-ray image to get a preliminary prediction of whether it shows signs of Tuberculosis or appears normal.
 
+The model will not work in the vercel app link but if you want a demo of the model see it the following link.
+
+https://huggingface.co/spaces/soutik07/MediSight
+
 User Authentication: Secure sign-up and login functionality for both patients and doctors, managed via Firebase.
 
 Role-Based Dashboards: Separate, tailored dashboard views for patients and doctors, providing relevant options and information.
