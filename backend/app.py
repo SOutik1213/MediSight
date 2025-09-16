@@ -1,21 +1,19 @@
-import os
 import gradio as gr
 import tensorflow as tf
 import numpy as np
 from PIL import Image
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
-from huggingface_hub import from_pretrained_keras
 
 # --- CONFIGURATIONS ---
 DISEASE_NAMES = [
-    '(vertigo) Paroymsal  Positional Vertigo', 'AIDS', 'Acne', 'Alcoholic hepatitis', 'Allergy',
-    'Arthritis', 'Bronchial Asthma', 'Cervical spondylosis', 'Chicken pox', 'Chronic cholestasis',
-    'Common Cold', 'Dengue', 'Diabetes ', 'Dimorphic hemmorhoids(piles)', 'Drug Reaction',
-    'Fungal infection', 'GERD', 'Gastroenteritis', 'Heart attack', 'Hepatitis B', 'Hepatitis C',
-    'Hepatitis D', 'Hepatitis E', 'Hypertension ', 'Hyperthyroidism', 'Hypoglycemia',
-    'Hypothyroidism', 'Impetigo', 'Jaundice', 'Malaria', 'Migraine', 'Osteoarthristis',
-    'Paralysis (brain hemorrhage)', 'Peptic ulcer diseae', 'Pneumonia', 'Psoriasis',
+    '(vertigo) Paroymsal  Positional Vertigo', 'AIDS', 'Acne', 'Alcoholic hepatitis', 'Allergy', 
+    'Arthritis', 'Bronchial Asthma', 'Cervical spondylosis', 'Chicken pox', 'Chronic cholestasis', 
+    'Common Cold', 'Dengue', 'Diabetes ', 'Dimorphic hemmorhoids(piles)', 'Drug Reaction', 
+    'Fungal infection', 'GERD', 'Gastroenteritis', 'Heart attack', 'Hepatitis B', 'Hepatitis C', 
+    'Hepatitis D', 'Hepatitis E', 'Hypertension ', 'Hyperthyroidism', 'Hypoglycemia', 
+    'Hypothyroidism', 'Impetigo', 'Jaundice', 'Malaria', 'Migraine', 'Osteoarthristis', 
+    'Paralysis (brain hemorrhage)', 'Peptic ulcer diseae', 'Pneumonia', 'Psoriasis', 
     'Tuberculosis', 'Typhoid', 'Urinary tract infection', 'Varicose veins', 'hepatitis A'
 ]
 
@@ -29,19 +27,19 @@ SKIN_CLASS_NAMES = [
     'Vascular lesions'
 ]
 SKIN_CANCEROUS_CLASSES = {
-    'Actinic keratoses and intraepithelial carcinoma / Bowen\'s disease',
-    'Basal cell carcinoma',
+    'Actinic keratoses and intraepithelial carcinoma / Bowen\'s disease', 
+    'Basal cell carcinoma', 
     'Melanoma'
 }
 SKIN_CONFIDENCE_THRESHOLD = 0.50
 TB_CLASS_NAMES = ['Tuberculosis', 'Normal']
 
-# --- LOAD MODELS FROM HUGGING FACE ---
-# Replace with your Hugging Face repo IDs
-skin_model = from_pretrained_keras("soutik07/Tuberculosis")
-tb_model = from_pretrained_keras("soutik07/Skin-cancer")
-tokenizer = AutoTokenizer.from_pretrained("soutik07/Transformer")
-transformer_model = AutoModelForSequenceClassification.from_pretrained("soutik07/Transformer")
+# --- GLOBALS FOR LAZY LOADING ---
+skin_model = None
+tb_model = None
+transformer_model = None
+tokenizer = None
+
 
 # --- IMAGE PREPROCESSING ---
 def preprocess_image(image, size=(224, 224)):
@@ -49,13 +47,36 @@ def preprocess_image(image, size=(224, 224)):
     img_array = np.array(img) / 255.0
     return np.expand_dims(img_array, axis=0)
 
+
+# --- MODEL GETTERS ---
+def get_skin_model():
+    global skin_model
+    if skin_model is None:
+        skin_model = tf.keras.models.load_model("soutik07/Skin-cancer")  # HF repo path
+    return skin_model
+
+def get_tb_model():
+    global tb_model
+    if tb_model is None:
+        tb_model = tf.keras.models.load_model("soutik07/Tuberculosis")  # HF repo path
+    return tb_model
+
+def get_transformer_model():
+    global transformer_model, tokenizer
+    if transformer_model is None:
+        tokenizer = AutoTokenizer.from_pretrained("soutik07/Transformer")
+        transformer_model = AutoModelForSequenceClassification.from_pretrained("soutik07/Transformer")
+    return tokenizer, transformer_model
+
+
 # --- PREDICTION FUNCTIONS ---
 def predict_skin(image):
     try:
+        model = get_skin_model()
         processed_image = preprocess_image(image)
-        predictions = skin_model.predict(processed_image)
+        predictions = model.predict(processed_image)
         prediction_prob = predictions[0]
-
+        
         predicted_class_idx = np.argmax(prediction_prob)
         predicted_class = SKIN_CLASS_NAMES[predicted_class_idx]
         confidence = float(prediction_prob[predicted_class_idx])
@@ -73,8 +94,9 @@ def predict_skin(image):
 
 def predict_tb(image):
     try:
+        model = get_tb_model()
         processed_image = preprocess_image(image)
-        predictions = tb_model.predict(processed_image)
+        predictions = model.predict(processed_image)
 
         if predictions.shape[1] == 1:
             tb_confidence = float(predictions[0][0])
@@ -103,9 +125,10 @@ def predict_tb(image):
 
 def predict_symptoms(text):
     try:
+        tokenizer, model = get_transformer_model()
         inputs = tokenizer(text, return_tensors="pt")
         with torch.no_grad():
-            logits = transformer_model(**inputs).logits
+            logits = model(**inputs).logits
         predicted_class_id = logits.argmax().item()
         predicted_class_name = DISEASE_NAMES[predicted_class_id] if 0 <= predicted_class_id < len(DISEASE_NAMES) else "Unknown Condition"
         confidence = torch.nn.functional.softmax(logits, dim=-1).max().item()
@@ -115,6 +138,7 @@ def predict_symptoms(text):
         }
     except Exception as e:
         return {"Error": str(e)}
+
 
 # --- GRADIO INTERFACES ---
 skin_interface = gr.Interface(fn=predict_skin, inputs=gr.Image(type="pil"), outputs="json", title="Skin Cancer Prediction", api_name="predict_skin")
@@ -126,8 +150,8 @@ demo = gr.TabbedInterface(
     ["Skin Cancer", "Tuberculosis", "Symptom Prediction"]
 )
 
+
 # --- LAUNCH ---
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 7860))  # Render provides PORT
     demo.queue()
-    demo.launch(server_name="0.0.0.0", server_port=port)
+    demo.launch(server_name="0.0.0.0", server_port=7860)
