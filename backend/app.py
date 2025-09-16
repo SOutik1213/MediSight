@@ -1,19 +1,21 @@
+import os
 import gradio as gr
 import tensorflow as tf
 import numpy as np
 from PIL import Image
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
+from huggingface_hub import from_pretrained_keras
 
 # --- CONFIGURATIONS ---
 DISEASE_NAMES = [
-    '(vertigo) Paroymsal  Positional Vertigo', 'AIDS', 'Acne', 'Alcoholic hepatitis', 'Allergy', 
-    'Arthritis', 'Bronchial Asthma', 'Cervical spondylosis', 'Chicken pox', 'Chronic cholestasis', 
-    'Common Cold', 'Dengue', 'Diabetes ', 'Dimorphic hemmorhoids(piles)', 'Drug Reaction', 
-    'Fungal infection', 'GERD', 'Gastroenteritis', 'Heart attack', 'Hepatitis B', 'Hepatitis C', 
-    'Hepatitis D', 'Hepatitis E', 'Hypertension ', 'Hyperthyroidism', 'Hypoglycemia', 
-    'Hypothyroidism', 'Impetigo', 'Jaundice', 'Malaria', 'Migraine', 'Osteoarthristis', 
-    'Paralysis (brain hemorrhage)', 'Peptic ulcer diseae', 'Pneumonia', 'Psoriasis', 
+    '(vertigo) Paroymsal  Positional Vertigo', 'AIDS', 'Acne', 'Alcoholic hepatitis', 'Allergy',
+    'Arthritis', 'Bronchial Asthma', 'Cervical spondylosis', 'Chicken pox', 'Chronic cholestasis',
+    'Common Cold', 'Dengue', 'Diabetes ', 'Dimorphic hemmorhoids(piles)', 'Drug Reaction',
+    'Fungal infection', 'GERD', 'Gastroenteritis', 'Heart attack', 'Hepatitis B', 'Hepatitis C',
+    'Hepatitis D', 'Hepatitis E', 'Hypertension ', 'Hyperthyroidism', 'Hypoglycemia',
+    'Hypothyroidism', 'Impetigo', 'Jaundice', 'Malaria', 'Migraine', 'Osteoarthristis',
+    'Paralysis (brain hemorrhage)', 'Peptic ulcer diseae', 'Pneumonia', 'Psoriasis',
     'Tuberculosis', 'Typhoid', 'Urinary tract infection', 'Varicose veins', 'hepatitis A'
 ]
 
@@ -27,18 +29,19 @@ SKIN_CLASS_NAMES = [
     'Vascular lesions'
 ]
 SKIN_CANCEROUS_CLASSES = {
-    'Actinic keratoses and intraepithelial carcinoma / Bowen\'s disease', 
-    'Basal cell carcinoma', 
+    'Actinic keratoses and intraepithelial carcinoma / Bowen\'s disease',
+    'Basal cell carcinoma',
     'Melanoma'
 }
 SKIN_CONFIDENCE_THRESHOLD = 0.50
 TB_CLASS_NAMES = ['Tuberculosis', 'Normal']
 
-# --- LOAD MODELS ---
-skin_model = tf.keras.models.load_model("skin_cancer_model (2).keras")
-tb_model = tf.keras.models.load_model("Tuberculosis_model.keras")
-tokenizer = AutoTokenizer.from_pretrained("transformer_model")
-transformer_model = AutoModelForSequenceClassification.from_pretrained("transformer_model")
+# --- LOAD MODELS FROM HUGGING FACE ---
+# Replace with your Hugging Face repo IDs
+skin_model = from_pretrained_keras("soutik07/Tuberculosis")
+tb_model = from_pretrained_keras("soutik07/Skin-cancer")
+tokenizer = AutoTokenizer.from_pretrained("soutik07/Transformer")
+transformer_model = AutoModelForSequenceClassification.from_pretrained("soutik07/Transformer")
 
 # --- IMAGE PREPROCESSING ---
 def preprocess_image(image, size=(224, 224)):
@@ -52,7 +55,7 @@ def predict_skin(image):
         processed_image = preprocess_image(image)
         predictions = skin_model.predict(processed_image)
         prediction_prob = predictions[0]
-        
+
         predicted_class_idx = np.argmax(prediction_prob)
         predicted_class = SKIN_CLASS_NAMES[predicted_class_idx]
         confidence = float(prediction_prob[predicted_class_idx])
@@ -114,9 +117,9 @@ def predict_symptoms(text):
         return {"Error": str(e)}
 
 # --- GRADIO INTERFACES ---
-skin_interface = gr.Interface(fn=predict_skin, inputs=gr.Image(type="pil"), outputs="json", title="Skin Cancer Prediction",api_name="predict_skin")
-tb_interface = gr.Interface(fn=predict_tb, inputs=gr.Image(type="pil"), outputs="json", title="Tuberculosis Prediction",api_name="predict_tb")
-symptom_interface = gr.Interface(fn=predict_symptoms, inputs="text", outputs="json", title="Symptom-based Disease Prediction",api_name="predict_symptoms")
+skin_interface = gr.Interface(fn=predict_skin, inputs=gr.Image(type="pil"), outputs="json", title="Skin Cancer Prediction", api_name="predict_skin")
+tb_interface = gr.Interface(fn=predict_tb, inputs=gr.Image(type="pil"), outputs="json", title="Tuberculosis Prediction", api_name="predict_tb")
+symptom_interface = gr.Interface(fn=predict_symptoms, inputs="text", outputs="json", title="Symptom-based Disease Prediction", api_name="predict_symptoms")
 
 demo = gr.TabbedInterface(
     [skin_interface, tb_interface, symptom_interface],
@@ -125,5 +128,6 @@ demo = gr.TabbedInterface(
 
 # --- LAUNCH ---
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 7860))  # Render provides PORT
     demo.queue()
-    demo.launch(server_name="0.0.0.0", server_port=7860, share=True)
+    demo.launch(server_name="0.0.0.0", server_port=port)
